@@ -1,0 +1,64 @@
+name: Build macOS Apple Silicon
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'MediaPipe libs tag'
+        type: string
+        default: v0.10.1-macos11
+
+jobs:
+  build-macos-arm64:
+    name: Build macOS ARM64
+    runs-on: macos-14  # Apple Silicon runner
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download libs
+        run: bash download_libs.sh "${{ inputs.tag }}"
+
+      - uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-StandaloneOSX-arm64-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: |
+            Library-StandaloneOSX-arm64-
+            Library-StandaloneOSX-
+
+      - name: Build project
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        with:
+          buildName: VRigUnity
+          versioning: None
+          targetPlatform: StandaloneOSX
+          unityVersion: 2021.3.14f1
+
+      - name: Create DMG
+        run: |
+          APP_PATH="build/StandaloneOSX/VRigUnity.app"
+          DMG_NAME="VRigUnity-macOS-AppleSilicon.dmg"
+          
+          # 创建临时目录
+          mkdir -p dmg_temp
+          cp -R "$APP_PATH" dmg_temp/
+          
+          # 创建 DMG
+          hdiutil create -volname "VRigUnity" -srcfolder dmg_temp -ov -format UDZO "$DMG_NAME"
+          
+          rm -rf dmg_temp
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: VRigUnity-macOS-AppleSilicon-DMG
+          path: VRigUnity-macOS-AppleSilicon.dmg
+
+      - name: Upload App Bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: VRigUnity-macOS-AppleSilicon-App
+          path: build/StandaloneOSX
