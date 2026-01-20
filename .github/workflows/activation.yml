@@ -6,19 +6,20 @@ on:
         description: 'Unity version'
         default: '2021.3.14f1'
         required: false
+
 jobs:
   activation:
-    name: Request manual activation file 🔑
+    name: Generate activation file 🔑
     runs-on: ubuntu-latest
     steps:
-      - name: Request manual activation file
-        id: getManualLicenseFile
-        uses: game-ci/unity-request-activation-file@v2
-        with:
-          unityVersion: ${{ inputs.unityVersion }}
+      - name: Generate .alf file
+        run: |
+          docker run --rm -v "$PWD:/output" unityci/editor:ubuntu-${{ inputs.unityVersion }}-base-3 \
+            bash -c "unity-editor -batchmode -createManualActivationFile -logFile /dev/stdout -quit || true; cp /*.alf /output/ 2>/dev/null || cp ~/*.alf /output/ 2>/dev/null || find / -name '*.alf' -exec cp {} /output/ \; 2>/dev/null || echo 'Searching for alf...'; ls -la /output/"
 
-      - name: Expose as artifact
+      - name: Upload activation file
         uses: actions/upload-artifact@v4
         with:
           name: Unity_activation_file
-          path: ${{ steps.getManualLicenseFile.outputs.filePath }}
+          path: "*.alf"
+          if-no-files-found: error
